@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Searchbar from '../Searchbar/Searchbar';
 import ImageGallery from '../ImageGallery/ImageGallery';
 import * as pixabayApi from '../utils/pixabay-api';
@@ -15,40 +15,23 @@ export const App = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [largeImageId, setLargeImageId] = useState(null);
+  const [isFetching, setIsFetching] = useState(false);
 
-  useEffect(() => {
-    if (search !== '') {
-      fetchImages(false);
-    }
-  }, [search]);
-
-  const onSearch = search => {
-    setSearch(search);
-    setImages([]);
-    setPageNumber(1);
-  };
-
-  const fetchImagesWithScroll = () => {
-    fetchImages(true);
-  };
-
-  const fetchImages = scroll => {
+  const fetchImages = useCallback((page, isScroll) => {
     setIsLoading(true);
     pixabayApi
-      .fetchImages(search, pageNumber)
+      .fetchImages(search, page)
       .then(images => {
-        setImages(prevImages => [...prevImages, ...images]);
-        setPageNumber(prevPageNumber => prevPageNumber + 1);
+        if (isScroll) {
+          setImages(prevImages => [...prevImages, ...images]);
+        } else {
+          setImages(images);
+        }
+        setPageNumber(page + 1);
         return images[0];
       })
-      .catch(error => {
-        setError(error);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      })
       .then(firstLoadedImage => {
-        if (scroll) {
+        if (isScroll) {
           const { id } = firstLoadedImage;
 
           const y =
@@ -60,7 +43,31 @@ export const App = () => {
             behavior: 'smooth',
           });
         }
+      })
+      .catch(error => {
+        setError("An error occurred while fetching images. Please try again later.");
+      })
+      .finally(() => {
+        setIsLoading(false);
+        setIsFetching(false); 
       });
+  }, [search]);
+
+  useEffect(() => {
+    if (search !== '') {
+      fetchImages(1, false);
+    }
+  }, [search, fetchImages]);
+
+  const onSearch = search => {
+    setSearch(search);
+    setImages([]);
+    setPageNumber(1);
+  };
+
+  const fetchImagesWithLoadMore = () => {
+    setIsFetching(true);
+    fetchImages(pageNumber, true);
   };
 
   const findPic = () => {
@@ -82,9 +89,10 @@ export const App = () => {
       <Searchbar onSubmit={onSearch} />
       <ImageGallery openModal={openModal} images={images} />
       {isLoading && <Loader />}
-      {images.length > 0 && (
-        <Button fetchImages={fetchImagesWithScroll} />
+      {images.length > 0 && !isFetching && (
+        <Button fetchImages={fetchImagesWithLoadMore} />
       )}
+      {error && <p>Error: {error}</p>}
       {isModalOpen && (
         <Modal largeImageId={largeImageId} onClose={closeModal}>
           <img src={findPic().largeImageURL} alt={findPic().tags} />
