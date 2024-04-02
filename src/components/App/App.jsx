@@ -19,6 +19,7 @@ export const App = () => {
 
   const fetchImages = useCallback((page, isScroll) => {
     setIsLoading(true);
+    setError('');
     pixabayApi
       .fetchImages(search, page)
       .then(images => {
